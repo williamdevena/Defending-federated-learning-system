@@ -7,11 +7,11 @@ python -c "from torchvision.datasets import CIFAR10; CIFAR10('./data', download=
 
 echo "Starting server"
 python server.py &
-sleep 3  # Sleep for 3s to give the server enough time to start
+sleep 10  # Sleep for 3s to give the server enough time to start
 
-for i in `seq 0 1`; do
-    echo "Starting client $i"
-    python client.py &
+for i in `seq 1 5`; do
+    echo "Starting client$i"
+    python "client$i.py" &
 done
 
 # Enable CTRL+C to stop all background processes

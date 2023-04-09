@@ -84,6 +84,12 @@ trainloader, testloader = load_data()
 
 # Define Flower client
 class FlowerClient(fl.client.NumPyClient):
+    def __init__(self):
+        self.cid = 5
+        
+    def get_cid(self):
+        return self.cid
+        
     def get_parameters(self, config):
         return [val.cpu().numpy() for _, val in net.state_dict().items()]
 
@@ -95,12 +101,12 @@ class FlowerClient(fl.client.NumPyClient):
     def fit(self, parameters, config):
         self.set_parameters(parameters)
         train(net, trainloader, epochs=1)
-        return self.get_parameters(config={}), len(trainloader.dataset), {}
+        return self.get_parameters(config={}), len(trainloader.dataset), {"cid": self.cid}
 
     def evaluate(self, parameters, config):
         self.set_parameters(parameters)
         loss, accuracy = test(net, testloader)
-        return loss, len(testloader.dataset), {"accuracy": accuracy}
+        return loss, len(testloader.dataset), {"accuracy": accuracy, "cid": self.cid}
 
 
 # Start Flower client
