@@ -1,0 +1,2 @@
+cd foldre
+./run.sh

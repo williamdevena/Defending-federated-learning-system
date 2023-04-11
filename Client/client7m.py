@@ -10,6 +10,9 @@ from torchvision.datasets import CIFAR10
 from torchvision.transforms import Compose, Normalize, ToTensor
 from tqdm import tqdm
 
+torch.cuda.empty_cache()
+
+
 
 # #############################################################################
 # 1. Regular PyTorch pipeline: nn.Module, train, test, and DataLoader
@@ -17,7 +20,6 @@ from tqdm import tqdm
 
 warnings.filterwarnings("ignore", category=UserWarning)
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
 
 class Net(nn.Module):
     """Model (simple CNN adapted from 'PyTorch: A 60 Minute Blitz')"""
@@ -38,6 +40,31 @@ class Net(nn.Module):
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         return self.fc3(x)
+
+
+class PoisionNet(nn.Module):
+    """Model (simple CNN adapted from 'PyTorch: A 60 Minute Blitz')"""
+
+    def __init__(self) -> None:
+        super(PoisionNet, self).__init__()
+        self.conv1 = nn.Conv2d(3, 6, 5)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.conv2 = nn.Conv2d(6, 16, 5)
+        self.conv3 = nn.Conv2d(16, 32, 3) # New convolutional layer
+        self.fc1 = nn.Linear(32 * 2 * 2, 240) # Updated input size
+        self.fc2 = nn.Linear(240, 120) # New fully connected layer
+        self.fc3 = nn.Linear(120, 84)
+        self.fc4 = nn.Linear(84, 10)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.pool(F.relu(self.conv2(x)))
+        x = self.pool(F.relu(self.conv3(x))) # New convolutional layer
+        x = x.view(-1, 32 * 2 * 2) # Updated view dimensions
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x)) # New fully connected layer
+        x = F.relu(self.fc3(x))
+        return self.fc4(x)
 
 
 def train(net, trainloader, epochs):
@@ -65,6 +92,7 @@ def test(net, testloader):
     return loss, accuracy
 
 
+
 def load_data():
     """Load CIFAR-10 (training and test set)."""
     trf = Compose([ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
@@ -79,33 +107,36 @@ def load_data():
 
 # Load model and data (simple CNN, CIFAR-10)
 net = Net().to(DEVICE)
+pnet = PoisionNet().to(DEVICE)
 trainloader, testloader = load_data()
 
 
 # Define Flower client
 class FlowerClient(fl.client.NumPyClient):
     def __init__(self):
-        self.cid = 3
+        self.cid = 7
         
     def get_cid(self):
         return self.cid
         
     def get_parameters(self, config):
         return [val.cpu().numpy() for _, val in net.state_dict().items()]
+        # return None
 
     def set_parameters(self, parameters):
         params_dict = zip(net.state_dict().keys(), parameters)
         state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
         net.load_state_dict(state_dict, strict=True)
+        # return None
 
     def fit(self, parameters, config):
         self.set_parameters(parameters)
-        train(net, trainloader, epochs=1)
+        train(pnet, trainloader, epochs=1)
         return self.get_parameters(config={}), len(trainloader.dataset), {"cid": self.cid}
 
     def evaluate(self, parameters, config):
         self.set_parameters(parameters)
-        loss, accuracy = test(net, testloader)
+        loss, accuracy = test(pnet, testloader)
         return loss, len(testloader.dataset), {"accuracy": accuracy, "cid": self.cid}
 
 

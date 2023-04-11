@@ -10,7 +10,7 @@ from torchvision.datasets import CIFAR10
 from torchvision.transforms import Compose, Normalize, ToTensor
 from tqdm import tqdm
 
-
+torch.cuda.empty_cache()
 # #############################################################################
 # 1. Regular PyTorch pipeline: nn.Module, train, test, and DataLoader
 # #############################################################################
@@ -85,8 +85,8 @@ trainloader, testloader = load_data()
 # Define Flower client
 class FlowerClient(fl.client.NumPyClient):
     def __init__(self):
-        self.cid = 5
-        
+        self.cid = 2
+
     def get_cid(self):
         return self.cid
         
