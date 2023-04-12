@@ -98,13 +98,16 @@ def add_noise_to_parameters(parameters, noise_factor=0.1):
 class FlowerClient(fl.client.NumPyClient):
     def __init__(self):
         self.cid = 7
+        self.atteck_prob = random.uniform(0, 1)
         
     def get_cid(self):
         return self.cid
+    
+    def get_atteck_prob(self):
+        return self.atteck_prob
         
     def get_parameters(self, config):
-        atteck_prob = random.uniform(0, 1)
-        if atteck_prob > 0.5:
+        if self.atteck_prob > 0.5:
             parameters = [val.cpu().numpy() for _, val in net.state_dict().items()]
             noised_parameters = add_noise_to_parameters(parameters)
             return noised_parameters
@@ -115,17 +118,16 @@ class FlowerClient(fl.client.NumPyClient):
         params_dict = zip(net.state_dict().keys(), parameters)
         state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
         net.load_state_dict(state_dict, strict=True)
-        # return None
 
     def fit(self, parameters, config):
         self.set_parameters(parameters)
         train(net, trainloader, epochs=1)
-        return self.get_parameters(config={}), len(trainloader.dataset), {"cid": self.cid}
+        return self.get_parameters(config={}), len(trainloader.dataset), {"cid": self.cid, "atteck_prob": self.atteck_prob}
 
     def evaluate(self, parameters, config):
         self.set_parameters(parameters)
         loss, accuracy = test(net, testloader)
-        return loss, len(testloader.dataset), {"accuracy": accuracy, "cid": self.cid}
+        return loss, len(testloader.dataset), {"accuracy": accuracy, "cid": self.cid, "atteck_prob": self.atteck_prob}
 
 
 # Start Flower client
