@@ -251,10 +251,10 @@ class FedCustom(Strategy):
 
                 # Access the underlying NumPy arrays of the first remaining element
                 first_remaining_weights = parameters_to_ndarrays(weights_results[first_remaining_index][0])
-                print(f"Row {len(first_remaining_weights[0])}, Column {len(first_remaining_weights)}")
+                # print(f"Row {len(first_remaining_weights[0])}, Column {len(first_remaining_weights)}")
                 # Create a modified version with added noise
                 modified_weights = [np.add(w, np.random.normal(-std_threshold, std_threshold, w.shape)) for w in first_remaining_weights]
-                print(f"Row {len(modified_weights[0])}, Column {len(modified_weights)}")
+                # print(f"Row {len(modified_weights[0])}, Column {len(modified_weights)}")
 
                 # Replace unwanted elements with the modified version
                 updated_weights_results = []
@@ -271,24 +271,24 @@ class FedCustom(Strategy):
         weights_aggregated = aggregate([(parameters_to_ndarrays(weights), num_examples) for weights, num_examples in weights_results])
         parameters_aggregated = ndarrays_to_parameters(weights_aggregated)
         
-        # Update threshold list (DO NOT UNCOMMENT IT UNTIL WE GET ATTECK ADN DEFENSE DONE)       
-        # if self.last_aggregated_parameter is not None:
+        # Update threshold list (DO NOT UNCOMMENT IT UNTIL WE GET ATTECK AND DEFENSE DONE)       
+        if self.last_aggregated_parameter is not None and len(del_index) == 0:
             
-        #     print(f"np.mean(diff_norm_list) (This round) = {np.mean(diff_norm_list)}")
-        #     print(f'std_value (This round) = {np.std(diff_norm_list)}')
+            print(f"np.mean(diff_norm_list) (This round) = {np.mean(diff_norm_list)}")
+            print(f'std_value (This round) = {np.std(diff_norm_list)}')
             
-        #     self.threshold_list[0][server_round-1] = np.max([np.mean(diff_norm_list), self.threshold_list[0][server_round-1]])
-        #     print("Currently the max thresholdis: ", self.threshold_list[0])
-        #     if self.threshold_list[1][server_round-1] == 0:
-        #         self.threshold_list[1][server_round-1] = np.mean(diff_norm_list)
-        #         print("Currently the min thresholdis: ", self.threshold_list[1])
-        #     else:
-        #         self.threshold_list[1][server_round-1] = np.min([np.mean(diff_norm_list), self.threshold_list[1][server_round-1]])
-        #         print("Currently the min thresholdis: ", self.threshold_list[1])
+            self.threshold_list[0][server_round-1] = np.max([np.mean(diff_norm_list), self.threshold_list[0][server_round-1]])
+            print("Currently the max thresholdis: ", self.threshold_list[0])
+            if self.threshold_list[1][server_round-1] == 0:
+                self.threshold_list[1][server_round-1] = np.mean(diff_norm_list)
+                print("Currently the min thresholdis: ", self.threshold_list[1])
+            else:
+                self.threshold_list[1][server_round-1] = np.min([np.mean(diff_norm_list), self.threshold_list[1][server_round-1]])
+                print("Currently the min thresholdis: ", self.threshold_list[1])
                 
-        #     self.threshold_list[2][server_round-1] = np.max([np.std(diff_norm_list), self.threshold_list[2][server_round-1]])
-        #     print("Currently the std: ", self.threshold_list[2])
-        #     # print(f'Currnet threshold_list variable {self.threshold_list}')
+            self.threshold_list[2][server_round-1] = np.max([np.std(diff_norm_list), self.threshold_list[2][server_round-1]])
+            print("Currently the std: ", self.threshold_list[2])
+            # print(f'Currnet threshold_list variable {self.threshold_list}')
 
         # Save last aggregated parameter for future comparison
         self.last_aggregated_parameter = parameters_aggregated

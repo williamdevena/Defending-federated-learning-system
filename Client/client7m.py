@@ -1,4 +1,5 @@
 import warnings
+import random
 from collections import OrderedDict
 
 import flwr as fl
@@ -102,10 +103,13 @@ class FlowerClient(fl.client.NumPyClient):
         return self.cid
         
     def get_parameters(self, config):
-        parameters = [val.cpu().numpy() for _, val in net.state_dict().items()]
-        noised_parameters = add_noise_to_parameters(parameters)
-        return noised_parameters
-        # return [val.cpu().numpy() for _, val in net.state_dict().items()]
+        atteck_prob = random.uniform(0, 1)
+        if atteck_prob > 0.5:
+            parameters = [val.cpu().numpy() for _, val in net.state_dict().items()]
+            noised_parameters = add_noise_to_parameters(parameters)
+            return noised_parameters
+        else:
+            return [val.cpu().numpy() for _, val in net.state_dict().items()]
 
     def set_parameters(self, parameters):
         params_dict = zip(net.state_dict().keys(), parameters)

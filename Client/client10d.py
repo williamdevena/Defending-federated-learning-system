@@ -85,7 +85,7 @@ class CIFAR10WithFakeData(CIFAR10):
             return super().__getitem__(index)
 
 # Update the data loading function
-def load_data():
+def load_noised_data():
     """Load CIFAR-10 (training and test set) with added fake data."""
     trf = Compose([ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
     trainset = CIFAR10WithFakeData("./data", train=True, download=True, transform=trf, fake_data_ratio=0.5)
@@ -94,12 +94,12 @@ def load_data():
 
 
 
-# def load_data():
-#     """Load CIFAR-10 (training and test set)."""
-#     trf = Compose([ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-#     trainset = CIFAR10("./data", train=True, download=True, transform=trf)
-#     testset = CIFAR10("./data", train=False, download=True, transform=trf)
-#     return DataLoader(trainset, batch_size=32, shuffle=True), DataLoader(testset)
+def load_data():
+    """Load CIFAR-10 (training and test set)."""
+    trf = Compose([ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+    trainset = CIFAR10("./data", train=True, download=True, transform=trf)
+    testset = CIFAR10("./data", train=False, download=True, transform=trf)
+    return DataLoader(trainset, batch_size=32, shuffle=True), DataLoader(testset)
 
 
 # #############################################################################
@@ -115,6 +115,7 @@ trainloader, testloader = load_data()
 class FlowerClient(fl.client.NumPyClient):
     def __init__(self):
         self.cid = 10
+        self.atteck_prob = random.uniform(0, 1)       
         
     def get_cid(self):
         return self.cid
@@ -129,14 +130,23 @@ class FlowerClient(fl.client.NumPyClient):
 
     def fit(self, parameters, config):
         self.set_parameters(parameters)
-        train(net, trainloader, epochs=1)
-        return self.get_parameters(config={}), len(trainloader.dataset), {"cid": self.cid}
+        if self.atteck_prob < 0.5:
+            train(net, trainloader, epochs=1)
+            length = len(trainloader.dataset)
+        else:
+            train(net, noised_trainloader, epochs=1)
+            length = len(noised_trainloader.dataset)
+        return self.get_parameters(config={}), length, {"cid": self.cid}
 
     def evaluate(self, parameters, config):
         self.set_parameters(parameters)
-        loss, accuracy = test(net, testloader)
-        return loss, len(testloader.dataset), {"accuracy": accuracy, "cid": self.cid}
-
+        if self.atteck_prob < 0.5:
+            loss, accuracy = test(net, testloader)
+            length = len(testloader.dataset)
+        else:
+            loss, accuracy = test(net, noised_testloader)
+            length = len(noised_testloader.dataset)
+        return loss, length, {"accuracy": accuracy, "cid": self.cid}
 
 # Start Flower client
 fl.client.start_numpy_client(
