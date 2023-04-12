@@ -2,6 +2,7 @@ import warnings
 from collections import OrderedDict
 
 import flwr as fl
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -10,6 +11,9 @@ from torchvision.datasets import CIFAR10
 from torchvision.transforms import Compose, Normalize, ToTensor
 from tqdm import tqdm
 
+torch.cuda.empty_cache()
+
+
 
 # #############################################################################
 # 1. Regular PyTorch pipeline: nn.Module, train, test, and DataLoader
@@ -17,7 +21,6 @@ from tqdm import tqdm
 
 warnings.filterwarnings("ignore", category=UserWarning)
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
 
 class Net(nn.Module):
     """Model (simple CNN adapted from 'PyTorch: A 60 Minute Blitz')"""
@@ -38,7 +41,6 @@ class Net(nn.Module):
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         return self.fc3(x)
-
 
 def train(net, trainloader, epochs):
     """Train the model on the training set."""
@@ -65,6 +67,7 @@ def test(net, testloader):
     return loss, accuracy
 
 
+
 def load_data():
     """Load CIFAR-10 (training and test set)."""
     trf = Compose([ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
@@ -82,21 +85,33 @@ net = Net().to(DEVICE)
 trainloader, testloader = load_data()
 
 
+def add_noise_to_parameters(parameters, noise_factor=0.1):
+    noised_parameters = []
+    for param in parameters:
+        noise = np.random.normal(0, noise_factor, param.shape)
+        noised_param = param + noise
+        noised_parameters.append(noised_param)
+    return noised_parameters
+
 # Define Flower client
 class FlowerClient(fl.client.NumPyClient):
     def __init__(self):
-        self.cid = 2
-
+        self.cid = 7
+        
     def get_cid(self):
         return self.cid
         
     def get_parameters(self, config):
-        return [val.cpu().numpy() for _, val in net.state_dict().items()]
+        parameters = [val.cpu().numpy() for _, val in net.state_dict().items()]
+        noised_parameters = add_noise_to_parameters(parameters)
+        return noised_parameters
+        # return [val.cpu().numpy() for _, val in net.state_dict().items()]
 
     def set_parameters(self, parameters):
         params_dict = zip(net.state_dict().keys(), parameters)
         state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
         net.load_state_dict(state_dict, strict=True)
+        # return None
 
     def fit(self, parameters, config):
         self.set_parameters(parameters)

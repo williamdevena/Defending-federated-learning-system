@@ -1,4 +1,5 @@
 import warnings
+import random
 from collections import OrderedDict
 
 import flwr as fl
@@ -9,6 +10,9 @@ from torch.utils.data import DataLoader
 from torchvision.datasets import CIFAR10
 from torchvision.transforms import Compose, Normalize, ToTensor
 from tqdm import tqdm
+
+torch.cuda.empty_cache()
+
 
 
 # #############################################################################
@@ -65,12 +69,38 @@ def test(net, testloader):
     return loss, accuracy
 
 
+
+
+class CIFAR10WithFakeData(CIFAR10):
+    def __init__(self, *args, fake_data_ratio=0.1, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fake_data_ratio = fake_data_ratio
+
+    def __getitem__(self, index: int):
+        if random.random() < self.fake_data_ratio:
+            # Generate fake data
+            fake_image = torch.rand(3, 32, 32)  # Random tensor with the same size as CIFAR-10 images
+            fake_label = random.randint(0, 9)   # Random label from 0 to 9
+            return fake_image, fake_label
+        else:
+            return super().__getitem__(index)
+
+# Update the data loading function
 def load_data():
-    """Load CIFAR-10 (training and test set)."""
+    """Load CIFAR-10 (training and test set) with added fake data."""
     trf = Compose([ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-    trainset = CIFAR10("./data", train=True, download=True, transform=trf)
-    testset = CIFAR10("./data", train=False, download=True, transform=trf)
+    trainset = CIFAR10WithFakeData("./data", train=True, download=True, transform=trf, fake_data_ratio=0.5)
+    testset = CIFAR10WithFakeData("./data", train=False, download=True, transform=trf, fake_data_ratio=0.5)
     return DataLoader(trainset, batch_size=32, shuffle=True), DataLoader(testset)
+
+
+
+# def load_data():
+#     """Load CIFAR-10 (training and test set)."""
+#     trf = Compose([ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+#     trainset = CIFAR10("./data", train=True, download=True, transform=trf)
+#     testset = CIFAR10("./data", train=False, download=True, transform=trf)
+#     return DataLoader(trainset, batch_size=32, shuffle=True), DataLoader(testset)
 
 
 # #############################################################################
@@ -85,7 +115,7 @@ trainloader, testloader = load_data()
 # Define Flower client
 class FlowerClient(fl.client.NumPyClient):
     def __init__(self):
-        self.cid = 3
+        self.cid = 9
         
     def get_cid(self):
         return self.cid
