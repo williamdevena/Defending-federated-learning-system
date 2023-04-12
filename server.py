@@ -36,11 +36,6 @@ connected to the server. `min_available_clients` must be set to a value larger
 than or equal to the values of `min_fit_clients` and `min_evaluate_clients`.
 """
 
-# def get_parameters(net) -> List[np.ndarray]:
-#     return [val.cpu().numpy() for _, val in net.state_dict().items()]
-
-torch.cuda.empty_cache()
-
 
 class FedCustom(Strategy):
     """Configurable FedAvg strategy implementation."""
@@ -51,7 +46,7 @@ class FedCustom(Strategy):
         fraction_fit: float = 0.5,
         fraction_evaluate: float = 0.5,
         min_fit_clients: int = 5,
-        min_evaluate_clients: int = 3,
+        min_evaluate_clients: int = 5,
         min_available_clients: int = 10,
         evaluate_fn: Optional[
             Callable[
@@ -66,6 +61,7 @@ class FedCustom(Strategy):
         fit_metrics_aggregation_fn: Optional[MetricsAggregationFn] = None,
         evaluate_metrics_aggregation_fn: Optional[MetricsAggregationFn] = None,
         threshold_list: List[float] = None,
+        back_index: int = 0
     ) -> None:
         super().__init__()
 
@@ -88,13 +84,14 @@ class FedCustom(Strategy):
         self.initial_parameters = initial_parameters
         self.fit_metrics_aggregation_fn = fit_metrics_aggregation_fn
         self.evaluate_metrics_aggregation_fn = weighted_average #evaluate_metrics_aggregation_fn
+        self.back_index = back_index if back_index != 0 else 0
         if threshold_list is not None:
             self.threshold_list = threshold_list
         else:
             if os.path.isfile("thresholds.txt"):
                 self.threshold_list = np.loadtxt("thresholds.txt")
             else:
-                self.threshold_list = [[0.0] * 5, [0.0] * 5, [0.0] * 5]
+                self.threshold_list = [[0.0] * 10, [0.0] * 10, [0.0] * 10]
 
 
     def __repr__(self) -> str:
@@ -193,6 +190,10 @@ class FedCustom(Strategy):
         failures: List[Union[Tuple[ClientProxy, FitRes], BaseException]],
     ) -> Tuple[Optional[Parameters], Dict[str, Scalar]]:
         """Aggregate fit results using weighted average."""
+        
+        if server_round == 1:
+            self.back_index = 0
+        
         if not results:
             return None, {}
         # Do not aggregate if there are failures and failures are not accepted
@@ -204,15 +205,17 @@ class FedCustom(Strategy):
                            for _, fit_res in results]
         
         print(self.threshold_list)
-        print(type(weights_results[0][0]))
         # shape of weights_results (3,2)
         # len of num_examples = 50000
         
         diff_norm_list, del_index = [], []
         iter = 0
-        upper_bound = self.threshold_list[0][server_round-1] + 3 * self.threshold_list[2][server_round-1]
-        lower_bound = self.threshold_list[1][server_round-1] - 3 * self.threshold_list[2][server_round-1]
-        std_threshold = self.threshold_list[2][server_round-1]
+        print(self.back_index)
+        upper_bound = self.threshold_list[0][server_round-1-self.back_index] + 6 * self.threshold_list[2][server_round-1-self.back_index]
+        print(upper_bound)
+        lower_bound = self.threshold_list[1][server_round-1-self.back_index] - 6 * self.threshold_list[2][server_round-1-self.back_index]
+        print(lower_bound)
+        std_threshold = self.threshold_list[2][server_round-1-self.back_index]
         for _, fit_res in results:
             cid = fit_res.metrics["cid"]
             
@@ -226,18 +229,21 @@ class FedCustom(Strategy):
                 diff_norm = np.linalg.norm([np.linalg.norm(a - b) for a, b in zip(client_parameter, last_parameter)])
                 print(f"The diff is {diff_norm}")
                 
-                if diff_norm >  upper_bound or diff_norm < lower_bound:
+                if diff_norm >=  upper_bound or diff_norm <= lower_bound:
                     print(f"Client {cid} parameter diff norm {diff_norm} is bigger than {upper_bound} or smaller than {lower_bound}. Skipping client update.")
                     # return self.last_aggregated_parameter, {}
                     del_index.append(iter)
                 else:
                     diff_norm_list.append(diff_norm)
-                    
+                
+                diff_norm_list.append(diff_norm)
                 iter += 1
                 
         # Delete those fake client data
         if self.last_aggregated_parameter is not None:
-            if len(del_index) == 3:
+            if len(del_index) >= 3:
+                if server_round != 1:
+                    self.back_index += 1
                 return self.last_aggregated_parameter, {}
             else:
                 # Find the index of the first remaining element
@@ -245,8 +251,10 @@ class FedCustom(Strategy):
 
                 # Access the underlying NumPy arrays of the first remaining element
                 first_remaining_weights = parameters_to_ndarrays(weights_results[first_remaining_index][0])
+                print(f"Row {len(first_remaining_weights[0])}, Column {len(first_remaining_weights)}")
                 # Create a modified version with added noise
                 modified_weights = [np.add(w, np.random.normal(-std_threshold, std_threshold, w.shape)) for w in first_remaining_weights]
+                print(f"Row {len(modified_weights[0])}, Column {len(modified_weights)}")
 
                 # Replace unwanted elements with the modified version
                 updated_weights_results = []
@@ -258,8 +266,6 @@ class FedCustom(Strategy):
 
                 weights_results = tuple(updated_weights_results)
 
-
-            
                     
         # Aggregate results
         weights_aggregated = aggregate([(parameters_to_ndarrays(weights), num_examples) for weights, num_examples in weights_results])
@@ -267,16 +273,9 @@ class FedCustom(Strategy):
         
         # Update threshold list (DO NOT UNCOMMENT IT UNTIL WE GET ATTECK ADN DEFENSE DONE)       
         # if self.last_aggregated_parameter is not None:
-        #     if self.threshold_list[0][server_round-1] != 0:
-        #     #     diff_norm_list.append(self.threshold_list[0][server_round-1])
-        #         print(f"np.mean(diff_norm_list) (before append) = {np.mean(diff_norm_list)}")
-        #         print(f'std_value (before append) = {np.std(diff_norm_list)}')
-        #         # print(f"diff_norm_list is {diff_norm_list}")
-        #         # std_value = np.mean([np.std(diff_norm_list), self.threshold_list[1][server_round-1]])
-        #         # print(f"std_value is {std_value}")
-        #     # else:
-        #     #     std_value = np.std(diff_norm_list)
-        #     #     # print(f"std_value is {std_value}")
+            
+        #     print(f"np.mean(diff_norm_list) (This round) = {np.mean(diff_norm_list)}")
+        #     print(f'std_value (This round) = {np.std(diff_norm_list)}')
             
         #     self.threshold_list[0][server_round-1] = np.max([np.mean(diff_norm_list), self.threshold_list[0][server_round-1]])
         #     print("Currently the max thresholdis: ", self.threshold_list[0])
@@ -359,7 +358,7 @@ strategy = FedCustom()
 # Start Flower server
 fl.server.start_server(
     server_address="0.0.0.0:8080",
-    config=fl.server.ServerConfig(num_rounds=5),
+    config=fl.server.ServerConfig(num_rounds=10),
     strategy=strategy,
 )
 

@@ -1,6 +1,7 @@
 import warnings
 from collections import OrderedDict
 
+import numpy as np
 import flwr as fl
 import torch
 import torch.nn as nn
@@ -85,6 +86,15 @@ def load_data():
 net = Net().to(DEVICE)
 trainloader, testloader = load_data()
 
+def add_noise_to_parameters(parameters, noise_factor=0.1):
+    noised_parameters = []
+    for param in parameters:
+        noise = np.random.normal(0, noise_factor, param.shape)
+        noised_param = param + noise
+        noised_parameters.append(noised_param)
+    return noised_parameters
+
+
 
 # Define Flower client
 class FlowerClient(fl.client.NumPyClient):
@@ -95,7 +105,10 @@ class FlowerClient(fl.client.NumPyClient):
         return self.cid
         
     def get_parameters(self, config):
-        return [val.cpu().numpy() for _, val in net.state_dict().items()]
+        parameters = [val.cpu().numpy() for _, val in net.state_dict().items()]
+        noised_parameters = add_noise_to_parameters(parameters)
+        return noised_parameters
+        # return [val.cpu().numpy() for _, val in net.state_dict().items()]
 
     def set_parameters(self, parameters):
         params_dict = zip(net.state_dict().keys(), parameters)

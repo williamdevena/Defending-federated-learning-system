@@ -2,6 +2,7 @@ import warnings
 from collections import OrderedDict
 
 import flwr as fl
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -40,32 +41,6 @@ class Net(nn.Module):
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         return self.fc3(x)
-
-
-class PoisionNet(nn.Module):
-    """Model (simple CNN adapted from 'PyTorch: A 60 Minute Blitz')"""
-
-    def __init__(self) -> None:
-        super(PoisionNet, self).__init__()
-        self.conv1 = nn.Conv2d(3, 6, 5)
-        self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(6, 16, 5)
-        self.conv3 = nn.Conv2d(16, 32, 3) # New convolutional layer
-        self.fc1 = nn.Linear(32 * 2 * 2, 240) # Updated input size
-        self.fc2 = nn.Linear(240, 120) # New fully connected layer
-        self.fc3 = nn.Linear(120, 84)
-        self.fc4 = nn.Linear(84, 10)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.pool(F.relu(self.conv2(x)))
-        x = self.pool(F.relu(self.conv3(x))) # New convolutional layer
-        x = x.view(-1, 32 * 2 * 2) # Updated view dimensions
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x)) # New fully connected layer
-        x = F.relu(self.fc3(x))
-        return self.fc4(x)
-
 
 def train(net, trainloader, epochs):
     """Train the model on the training set."""
@@ -107,9 +82,16 @@ def load_data():
 
 # Load model and data (simple CNN, CIFAR-10)
 net = Net().to(DEVICE)
-pnet = PoisionNet().to(DEVICE)
 trainloader, testloader = load_data()
 
+
+def add_noise_to_parameters(parameters, noise_factor=0.1):
+    noised_parameters = []
+    for param in parameters:
+        noise = np.random.normal(0, noise_factor, param.shape)
+        noised_param = param + noise
+        noised_parameters.append(noised_param)
+    return noised_parameters
 
 # Define Flower client
 class FlowerClient(fl.client.NumPyClient):
@@ -120,8 +102,10 @@ class FlowerClient(fl.client.NumPyClient):
         return self.cid
         
     def get_parameters(self, config):
-        return [val.cpu().numpy() for _, val in net.state_dict().items()]
-        # return None
+        parameters = [val.cpu().numpy() for _, val in net.state_dict().items()]
+        noised_parameters = add_noise_to_parameters(parameters)
+        return noised_parameters
+        # return [val.cpu().numpy() for _, val in net.state_dict().items()]
 
     def set_parameters(self, parameters):
         params_dict = zip(net.state_dict().keys(), parameters)
@@ -131,12 +115,12 @@ class FlowerClient(fl.client.NumPyClient):
 
     def fit(self, parameters, config):
         self.set_parameters(parameters)
-        train(pnet, trainloader, epochs=1)
+        train(net, trainloader, epochs=1)
         return self.get_parameters(config={}), len(trainloader.dataset), {"cid": self.cid}
 
     def evaluate(self, parameters, config):
         self.set_parameters(parameters)
-        loss, accuracy = test(pnet, testloader)
+        loss, accuracy = test(net, testloader)
         return loss, len(testloader.dataset), {"accuracy": accuracy, "cid": self.cid}
 
 
