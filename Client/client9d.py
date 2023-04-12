@@ -121,6 +121,9 @@ class FlowerClient(fl.client.NumPyClient):
         
     def get_cid(self):
         return self.cid
+    
+    def get_atteck_prob(self):
+        return self.atteck_prob
         
     def get_parameters(self, config):
         return [val.cpu().numpy() for _, val in net.state_dict().items()]
@@ -138,7 +141,7 @@ class FlowerClient(fl.client.NumPyClient):
         else:
             train(net, noised_trainloader, epochs=1)
             length = len(noised_trainloader.dataset)
-        return self.get_parameters(config={}), length, {"cid": self.cid}
+        return self.get_parameters(config={}), length, {"cid": self.cid, "atteck_prob": self.atteck_prob}
 
     def evaluate(self, parameters, config):
         self.set_parameters(parameters)
@@ -148,7 +151,7 @@ class FlowerClient(fl.client.NumPyClient):
         else:
             loss, accuracy = test(net, noised_testloader)
             length = len(noised_testloader.dataset)
-        return loss, length, {"accuracy": accuracy, "cid": self.cid}
+        return loss, length, {"accuracy": accuracy, "cid": self.cid, "atteck_prob": self.atteck_prob}
 
 
 # Start Flower client

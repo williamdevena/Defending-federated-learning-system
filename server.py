@@ -204,20 +204,23 @@ class FedCustom(Strategy):
         weights_results = [    (fit_res.parameters, fit_res.num_examples)    
                            for _, fit_res in results]
         
-        print(self.threshold_list)
+        # print(self.threshold_list)
         # shape of weights_results (3,2)
         # len of num_examples = 50000
         
         diff_norm_list, del_index = [], []
         iter = 0
-        print(self.back_index)
+        # print(self.back_index)
         upper_bound = self.threshold_list[0][server_round-1-self.back_index] + 6 * self.threshold_list[2][server_round-1-self.back_index]
-        print(upper_bound)
+        # print(upper_bound)
         lower_bound = self.threshold_list[1][server_round-1-self.back_index] - 6 * self.threshold_list[2][server_round-1-self.back_index]
-        print(lower_bound)
+        # print(lower_bound)
         std_threshold = self.threshold_list[2][server_round-1-self.back_index]
         for _, fit_res in results:
             cid = fit_res.metrics["cid"]
+            # if cid in [7,8,9,10]:
+            #     atteck_prob = fit_res.metrics["atteck_prob"]
+            #     print(f"The atteck probability for client {cid} is {atteck_prob}")
             
             # Check if difference between last aggregated parameter and client parameter
             # is less than a certain threshold before aggregating update
