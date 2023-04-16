@@ -5,7 +5,6 @@ import flwr as fl
 import numpy as np
 from flwr.common import Metrics
     
-    
 from logging import WARNING
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
@@ -61,7 +60,10 @@ class FedCustom(Strategy):
         fit_metrics_aggregation_fn: Optional[MetricsAggregationFn] = None,
         evaluate_metrics_aggregation_fn: Optional[MetricsAggregationFn] = None,
         threshold_list: List[float] = None,
-        back_index: int = 0
+        back_index: int = 0,
+        ban_count: int = 0,
+        tolerance_count: int =0,
+        client_dict: Dict = {}
     ) -> None:
         super().__init__()
 
@@ -85,6 +87,12 @@ class FedCustom(Strategy):
         self.fit_metrics_aggregation_fn = fit_metrics_aggregation_fn
         self.evaluate_metrics_aggregation_fn = weighted_average #evaluate_metrics_aggregation_fn
         self.back_index = back_index if back_index != 0 else 0
+        self.ban_count = ban_count
+        self.tolerance_count = tolerance_count
+        for cd in range(1,11):
+            client = f'client{cd}'
+            client_dict[client] = {'ban_count':0,'tolerance':3, 'atteck_tiems':0}
+        self.client_dict = client_dict
         if threshold_list is not None:
             self.threshold_list = threshold_list
         else:
@@ -218,9 +226,9 @@ class FedCustom(Strategy):
         std_threshold = self.threshold_list[2][server_round-1-self.back_index]
         for _, fit_res in results:
             cid = fit_res.metrics["cid"]
-            # if cid in [7,8,9,10]:
-            #     atteck_prob = fit_res.metrics["atteck_prob"]
-            #     print(f"The atteck probability for client {cid} is {atteck_prob}")
+            if cid in [7,8,9,10]:
+                atteck_prob = fit_res.metrics["atteck_prob"]
+                print(f"The atteck probability for client {cid} is {atteck_prob}")
             
             # Check if difference between last aggregated parameter and client parameter
             # is less than a certain threshold before aggregating update
@@ -236,13 +244,46 @@ class FedCustom(Strategy):
                     print(f"Client {cid} parameter diff norm {diff_norm} is bigger than {upper_bound} or smaller than {lower_bound}. Skipping client update.")
                     # return self.last_aggregated_parameter, {}
                     del_index.append(iter)
+                    client = f'client{cid}'
+                    self.client_dict[client]['atteck_tiems'] += 1
+                    
+                    if self.client_dict[client]['atteck_tiems'] == self.client_dict[client]['tolerance']:
+                        self.client_dict[client]['atteck_tiems'] = 0
+                        self.client_dict[client]['tolerance'] -= 1
+                        
+                        if self.client_dict[client]['tolerance'] == 3 and self.client_dict[client]['ban_count'] == 0:
+                            self.client_dict[client]['ban_count'] += 1
+                            # Implement ban
+                            print(f"Ban {self.client_dict[client]['tolerance']} round")
+                            
+                        elif self.client_dict[client]['tolerance'] == 2 and self.client_dict[client]['ban_count'] == 1:
+                            self.client_dict[client]['ban_count'] += 1
+                            # Implement ban
+                            print(f"Ban {self.client_dict[client]['tolerance']} round")
+                            
+                        elif self.client_dict[client]['tolerance'] == 1 and self.client_dict[client]['ban_count'] == 2:
+                            self.client_dict[client]['ban_count'] += 1
+                            # Implement ban
+                            print(f"Ban {self.client_dict[client]['tolerance']} round")
+                            
+                        elif self.client_dict[client]['tolerance'] == 1 and self.client_dict[client]['ban_count'] == 3:
+                            # Implement ban
+                            print(f"Ban forever")
+                        
+                    print(f"The tolerance for client {cid} is {self.client_dict[client]['tolerance']}, the ban is {self.client_dict[client]['ban_count']} \
+                        and the atteck times is {self.client_dict[client]['atteck_tiems']}")
+                    
                 else:
                     diff_norm_list.append(diff_norm)
                 
                 diff_norm_list.append(diff_norm)
                 iter += 1
+            # else:
+            #     client_parameters = [parameters_to_ndarrays(params[0]) for params in weights_results]
                 
-        # Delete those fake client data
+
+                
+        # Delete those fake client data Add a parameter to call it
         if self.last_aggregated_parameter is not None:
             if len(del_index) >= 3:
                 if server_round != 1:
@@ -256,14 +297,14 @@ class FedCustom(Strategy):
                 first_remaining_weights = parameters_to_ndarrays(weights_results[first_remaining_index][0])
                 # print(f"Row {len(first_remaining_weights[0])}, Column {len(first_remaining_weights)}")
                 # Create a modified version with added noise
-                modified_weights = [np.add(w, np.random.normal(-std_threshold, std_threshold, w.shape)) for w in first_remaining_weights]
+                # modified_weights = [np.add(w, np.random.normal(-std_threshold, std_threshold, w.shape)) for w in first_remaining_weights]
                 # print(f"Row {len(modified_weights[0])}, Column {len(modified_weights)}")
 
                 # Replace unwanted elements with the modified version
                 updated_weights_results = []
                 for i, (weight, num_examples) in enumerate(weights_results):
                     if i in del_index:
-                        updated_weights_results.append((ndarrays_to_parameters(modified_weights), num_examples))
+                        updated_weights_results.append((ndarrays_to_parameters(first_remaining_weights), num_examples))
                     else:
                         updated_weights_results.append((weight, num_examples))
 
@@ -274,11 +315,11 @@ class FedCustom(Strategy):
         weights_aggregated = aggregate([(parameters_to_ndarrays(weights), num_examples) for weights, num_examples in weights_results])
         parameters_aggregated = ndarrays_to_parameters(weights_aggregated)
         
-        # Update threshold list (DO NOT UNCOMMENT IT UNTIL WE GET ATTECK AND DEFENSE DONE)       
+        # Update threshold list   
         if self.last_aggregated_parameter is not None and len(del_index) == 0:
             
-            print(f"np.mean(diff_norm_list) (This round) = {np.mean(diff_norm_list)}")
-            print(f'std_value (This round) = {np.std(diff_norm_list)}')
+            # print(f"np.mean(diff_norm_list) (This round) = {np.mean(diff_norm_list)}")
+            # print(f'std_value (This round) = {np.std(diff_norm_list)}')
             
             self.threshold_list[0][server_round-1] = np.max([np.mean(diff_norm_list), self.threshold_list[0][server_round-1]])
             print("Currently the max thresholdis: ", self.threshold_list[0])
@@ -329,25 +370,86 @@ class FedCustom(Strategy):
                 for _, evaluate_res in results
             ]
         )
+        
+        for _, fit_res in results:
+            cid = fit_res.metrics["cid"]
+            if cid in [7,8,9,10]:
+                atteck_prob = fit_res.metrics["atteck_prob"]
+                print(f"The atteck probability for client {cid} is {atteck_prob}")
+            else:
+                print(f"Client {cid} is doing the aggregate")
+            
 
         # Aggregate custom metrics if aggregation fn was provided
         metrics_aggregated = {}
         if self.evaluate_metrics_aggregation_fn:
             eval_metrics = [(res.num_examples, res.metrics) for _, res in results]
-            metrics_aggregated = self.evaluate_metrics_aggregation_fn(eval_metrics)
+            metrics_aggregated = self.evaluate_metrics_aggregation_fn(eval_metrics, results, self.client_dict)
         elif server_round == 1:  # Only log this warning once
             log(WARNING, "No evaluate_metrics_aggregation_fn provided")
 
         return loss_aggregated, metrics_aggregated
 
 # Define metric aggregation function
-def weighted_average(metrics: List[Tuple[int, Metrics]]) -> Metrics:
+def weighted_average(metrics: List[Tuple[int, Metrics]], results, client_dict) -> Metrics:
     # Multiply accuracy of each client by number of examples used
     accuracies = [num_examples * m["accuracy"] for num_examples, m in metrics]
     examples = [num_examples for num_examples, _ in metrics]
+    accuracies = replace_and_print_non_mode(accuracies, results, client_dict)
+    
+    # for i in range(5):
+    #     print(f"The accuracy for {i}th client list above, the acc is {accuracies[i]}")
+    #     print(f"{examples[0]}")
+        
+    print(f"accuracy is {sum(accuracies) / sum(examples)}")
 
     # Aggregate and return custom metric (weighted average)
     return {"accuracy": sum(accuracies) / sum(examples)}
+
+from collections import Counter
+
+def replace_and_print_non_mode(lst: list, results, client_dict) -> list:
+    # Get the common number
+    mode = Counter(lst).most_common(1)[0][0]
+    
+    # Change the uncommon number to common number
+    client_list = []
+    for _, fit_res in results:
+            client_list.append(fit_res.metrics["cid"])
+    for i, num in enumerate(lst):
+        if num != mode:
+            client = f'client{client_list[i]}'
+            client_dict[client]['atteck_tiems'] += 1
+                    
+            if client_dict[client]['atteck_tiems'] == client_dict[client]['tolerance']:
+                client_dict[client]['atteck_tiems'] = 0
+                client_dict[client]['tolerance'] -= 1
+                
+                if client_dict[client]['tolerance'] == 3 and client_dict[client]['ban_count'] == 0:
+                    client_dict[client]['ban_count'] += 1
+                    # Implement ban
+                    print(f"Ban {client_dict[client]['tolerance']} round")
+                    
+                elif client_dict[client]['tolerance'] == 2 and client_dict[client]['ban_count'] == 1:
+                    client_dict[client]['ban_count'] += 1
+                    # Implement ban
+                    print(f"Ban {client_dict[client]['tolerance']} round")
+                    
+                elif client_dict[client]['tolerance'] == 1 and client_dict[client]['ban_count'] == 2:
+                    client_dict[client]['ban_count'] += 1
+                    # Implement ban
+                    print(f"Ban {client_dict[client]['tolerance']} round")
+                    
+                elif client_dict[client]['tolerance'] == 1 and client_dict[client]['ban_count'] == 3:
+                    # Implement ban
+                    print(f"Ban {client_dict[client]['tolerance']} round")
+                
+            print(f"The tolerance for client {client_list[i]} is {client_dict[client]['tolerance']}, the ban is {client_dict[client]['ban_count']} \
+                and the atteck times is {client_dict[client]['atteck_tiems']}")
+            
+            lst[i] = mode
+    
+    return lst
 
 
 
