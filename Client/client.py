@@ -1,3 +1,4 @@
+import sys
 import warnings
 from collections import OrderedDict
 
@@ -84,12 +85,12 @@ trainloader, testloader = load_data()
 
 # Define Flower client
 class FlowerClient(fl.client.NumPyClient):
-    def __init__(self):
-        self.cid = 2
+    def __init__(self, cid):
+        self.cid = cid
 
     def get_cid(self):
         return self.cid
-        
+
     def get_parameters(self, config):
         return [val.cpu().numpy() for _, val in net.state_dict().items()]
 
@@ -109,8 +110,13 @@ class FlowerClient(fl.client.NumPyClient):
         return loss, len(testloader.dataset), {"accuracy": accuracy, "cid": self.cid}
 
 
-# Start Flower client
-fl.client.start_numpy_client(
-    server_address="127.0.0.1:8080",
-    client=FlowerClient(),
-)
+def main():
+    # Start Flower client
+    fl.client.start_numpy_client(
+        server_address="127.0.0.1:8080",
+        client=FlowerClient(cid=int(sys.argv[1])),
+    )
+
+
+if __name__=="__main__":
+    main()

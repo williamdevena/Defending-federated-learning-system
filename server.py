@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 from logging import WARNING
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
@@ -14,6 +15,7 @@ from flwr.server.client_manager import ClientManager
 from flwr.server.client_proxy import ClientProxy
 from flwr.server.strategy.aggregate import aggregate, weighted_loss_avg
 from flwr.server.strategy.strategy import Strategy
+from termcolor import colored
 
 WARNING_MIN_AVAILABLE_CLIENTS_TOO_LOW = """
 Setting `min_available_clients` lower than `min_fit_clients` or
@@ -81,8 +83,8 @@ class FedCustom(Strategy):
             client_dict[client] = {'currently_banned':False,
                                    'banned_rounds':0,
                                    'ban_count':0,
-                                   'tolerance':1,
-                                   'atteck_tiems':0}
+                                   'tolerance':3,
+                                   'attack_times':0}
         self.client_dict = client_dict
         if threshold_list is not None:
             self.threshold_list = threshold_list
@@ -201,6 +203,9 @@ class FedCustom(Strategy):
         """
         Bans the client.
         """
+        #print(colored(f"WARNING: Banning client {cid}!!\n"), 'red')
+        print(f"\033[38;5;1m- WARNING: Banning client {cid}\033[0;0m")
+
         self.client_dict[f'client{cid}']['currently_banned'] = True
 
 
@@ -212,7 +217,8 @@ class FedCustom(Strategy):
         """
         Removes ban for a client.
         """
-        print(f"\nRemoved ban of client {cid}.\n")
+        #print(colored(f"WARNING: Removed ban of client {cid}.\n"), 'red')
+        print(f"\033[38;5;1m- WARNING: Removed ban of client {cid}\033[0;0m")
         self.client_dict[f'client{cid}']['banned_rounds'] = 0
         self.client_dict[f'client{cid}']['currently_banned'] = False
 
@@ -228,6 +234,7 @@ class FedCustom(Strategy):
     ) -> Tuple[Optional[Parameters], Dict[str, Scalar]]:
         """Aggregate fit results using weighted average."""
 
+
         if server_round == 1:
             self.back_index = 0
 
@@ -241,57 +248,57 @@ class FedCustom(Strategy):
         weights_results = [(fit_res.parameters, fit_res.num_examples)
                            for _, fit_res in results]
 
-        # print(self.threshold_list)
         # shape of weights_results (3,2)
         # len of num_examples = 50000
 
         diff_norm_list, del_index, ban_index = [], [], []
         iter = 0
-        # print(self.back_index)
         upper_bound = self.threshold_list[0][server_round-1-self.back_index] + 6 * self.threshold_list[2][server_round-1-self.back_index]
-        # print(upper_bound)
         lower_bound = self.threshold_list[1][server_round-1-self.back_index] - 6 * self.threshold_list[2][server_round-1-self.back_index]
-        # print(lower_bound)
         std_threshold = self.threshold_list[2][server_round-1-self.back_index]
         for _, fit_res in results:
             cid = fit_res.metrics["cid"]
 
             if self.client_is_banned(cid=cid):
-                print(f"\nClient {cid} is banned for this round.\n")
+                ban_index.append(iter)
+                #print(colored(f"\n- Client {cid} is banned for this round.\n"), 'red')
+                print(f"\033[38;5;1m- Client {cid} is banned for this round\033[0;0m")
+
                 self.client_dict[f'client{cid}']['banned_rounds'] += 1
-                if self.client_dict[f'client{cid}']['banned_rounds']==3-(self.client_dict[f'client{cid}']['ban_count']):
+                if self.client_dict[f'client{cid}']['banned_rounds']==3-(self.client_dict[f'client{cid}']['ban_count']+1):
                     self.remove_ban(cid=cid)
                 continue
 
             if cid in [7,8,9,10]:
-                atteck_prob = fit_res.metrics["atteck_prob"]
-                print(f"The atteck probability for client {cid} is {atteck_prob}")
+                attack_prob = fit_res.metrics["attack_prob"]
+                #print(f"The attack probability for client {cid} is {attack_prob}")
 
             # Check if difference between last aggregated parameter and client parameter
             # is less than a certain threshold before aggregating update
             if self.last_aggregated_parameter is not None:
-                print(f"Checking the gradient on Cleint {cid}")
+                #print(colored(f"- Checking the gradient on Client {cid}"), 'green')
+                #print(f"\033[38;5;1mSELF CLIENT DICT: {self.client_dict}\033[0;0m")
+                print(f"\033[38;5;40m- Checking the gradient on Client {cid} xxxxxx{self.client_dict}\033[0;0m")
                 client_parameter = parameters_to_ndarrays(weights_results[iter][0])
                 last_parameter = parameters_to_ndarrays(self.last_aggregated_parameter)
                 last_parameter = [np.array(elem) for elem in last_parameter]
                 diff_norm = np.linalg.norm([np.linalg.norm(a - b) for a, b in zip(client_parameter, last_parameter)])
-                print(f"The diff is {diff_norm}")
+                #print(f"The diff is {diff_norm}")
 
                 if diff_norm >=  upper_bound or diff_norm <= lower_bound:
-                    print(f"Client {cid} parameter diff norm {diff_norm} is bigger than {upper_bound} or smaller than {lower_bound}. Skipping client update.")
-                    # return self.last_aggregated_parameter, {}
+                    #print(colored(f"- Client {cid} parameter diff norm {diff_norm} is bigger than {upper_bound} or smaller than {lower_bound}. Skipping client update."),
+                    #      'red')
+                    print(f"\033[38;5;40m- Client {cid} parameter diff norm {diff_norm} is bigger than {upper_bound} or smaller than {lower_bound}. Skipping client update.\033[0;0m")
                     del_index.append(iter)
                     client = f'client{cid}'
-                    self.client_dict[client]['atteck_tiems'] += 1
+                    self.client_dict[client]['attack_times'] += 1
 
 
                     # BAN
-                    if self.client_dict[client]['atteck_tiems'] == self.client_dict[client]['tolerance']:
+                    if self.client_dict[client]['attack_times'] == self.client_dict[client]['tolerance']:
                         ban_index.append(iter)
-                        self.client_dict[client]['atteck_tiems'] = 0
+                        self.client_dict[client]['attack_times'] = 0
                         self.client_dict[client]['tolerance'] -= 1
-
-                        print(f"\n Banning client {cid}!!\n")
                         self.ban_client(cid=cid)
 
                         # IMPLEMENT BAN
@@ -315,8 +322,8 @@ class FedCustom(Strategy):
                         #     # Implement ban
                         #     print(f"Ban forever")
 
-                    print(f"The tolerance for client {cid} is {self.client_dict[client]['tolerance']}, the ban is {self.client_dict[client]['ban_count']} \
-                        and the atteck times is {self.client_dict[client]['atteck_tiems']}")
+                    # print(f"The tolerance for client {cid} is {self.client_dict[client]['tolerance']}, the ban is {self.client_dict[client]['ban_count']} \
+                    #     and the attack times is {self.client_dict[client]['attack_times']}")
 
                 else:
                     diff_norm_list.append(diff_norm)
@@ -343,7 +350,6 @@ class FedCustom(Strategy):
                 # print(f"Row {len(first_remaining_weights[0])}, Column {len(first_remaining_weights)}")
                 # Create a modified version with added noise
                 # modified_weights = [np.add(w, np.random.normal(-std_threshold, std_threshold, w.shape)) for w in first_remaining_weights]
-                # print(f"Row {len(modified_weights[0])}, Column {len(modified_weights)}")
 
                 # Replace unwanted elements with the modified version
                 updated_weights_results = []
@@ -362,22 +368,17 @@ class FedCustom(Strategy):
 
         # Update threshold list
         if self.last_aggregated_parameter is not None and len(del_index) == 0:
-
-            # print(f"np.mean(diff_norm_list) (This round) = {np.mean(diff_norm_list)}")
-            # print(f'std_value (This round) = {np.std(diff_norm_list)}')
-
             self.threshold_list[0][server_round-1] = np.max([np.mean(diff_norm_list), self.threshold_list[0][server_round-1]])
-            print("Currently the max thresholdis: ", self.threshold_list[0])
+            print("- Currently the max thresholdis: ", self.threshold_list[0])
             if self.threshold_list[1][server_round-1] == 0:
                 self.threshold_list[1][server_round-1] = np.mean(diff_norm_list)
-                print("Currently the min thresholdis: ", self.threshold_list[1])
+                print("- Currently the min thresholdis: ", self.threshold_list[1])
             else:
                 self.threshold_list[1][server_round-1] = np.min([np.mean(diff_norm_list), self.threshold_list[1][server_round-1]])
-                print("Currently the min thresholdis: ", self.threshold_list[1])
+                print("- Currently the min thresholdis: ", self.threshold_list[1])
 
             self.threshold_list[2][server_round-1] = np.max([np.std(diff_norm_list), self.threshold_list[2][server_round-1]])
-            print("Currently the std: ", self.threshold_list[2])
-            # print(f'Currnet threshold_list variable {self.threshold_list}')
+            print("- Currently the std: ", self.threshold_list[2])
 
         # Save last aggregated parameter for future comparison
         self.last_aggregated_parameter = parameters_aggregated
@@ -419,10 +420,12 @@ class FedCustom(Strategy):
         for _, fit_res in results:
             cid = fit_res.metrics["cid"]
             if cid in [7,8,9,10]:
-                atteck_prob = fit_res.metrics["atteck_prob"]
-                print(f"The atteck probability for client {cid} is {atteck_prob}")
+                attack_prob = fit_res.metrics["attack_prob"]
+                #print(f"The attack probability for client {cid} is {attack_prob}")
             else:
-                print(f"Client {cid} is doing the aggregate")
+                #print(colored(f"- Client {cid} is doing the aggregate"), 'green')
+                print(f"\033[38;5;40m- Client {cid} is doing the aggregate\033[0;0m")
+                #print(f"\033[38;5;40m BELLOOOOO \033[0;0m\n")
 
 
         # Aggregate custom metrics if aggregation fn was provided
@@ -442,11 +445,8 @@ def weighted_average(metrics: List[Tuple[int, Metrics]], results, client_dict) -
     examples = [num_examples for num_examples, _ in metrics]
     # accuracies = replace_and_print_non_mode(accuracies, results, client_dict)
 
-    # for i in range(5):
-    #     print(f"The accuracy for {i}th client list above, the acc is {accuracies[i]}")
-    #     print(f"{examples[0]}")
-
-    print(f"accuracy is {sum(accuracies) / sum(examples)}")
+    #print(colored(f"- Accuracy is {sum(accuracies) / sum(examples)}"), 'green')
+    print(f"\033[38;5;40m- Accuracy is {sum(accuracies) / sum(examples)}.\033[0;0m")
 
     # Aggregate and return custom metric (weighted average)
     return {"accuracy": sum(accuracies) / sum(examples)}
@@ -464,10 +464,10 @@ def weighted_average(metrics: List[Tuple[int, Metrics]], results, client_dict) -
 #     for i, num in enumerate(lst):
 #         if num != mode:
 #             # client = f'client{client_list[i]}'
-#             # client_dict[client]['atteck_tiems'] += 1
+#             # client_dict[client]['attack_times'] += 1
 
-#             # if client_dict[client]['atteck_tiems'] == client_dict[client]['tolerance']:
-#             #     client_dict[client]['atteck_tiems'] = 0
+#             # if client_dict[client]['attack_times'] == client_dict[client]['tolerance']:
+#             #     client_dict[client]['attack_times'] = 0
 #             #     client_dict[client]['tolerance'] -= 1
 
 #             #     if client_dict[client]['tolerance'] == 3 and client_dict[client]['ban_count'] == 0:
@@ -490,27 +490,27 @@ def weighted_average(metrics: List[Tuple[int, Metrics]], results, client_dict) -
 #             #         print(f"Ban {client_dict[client]['tolerance']} round")
 
 #             # print(f"The tolerance for client {client_list[i]} is {client_dict[client]['tolerance']}, the ban is {client_dict[client]['ban_count']} \
-#             #     and the atteck times is {client_dict[client]['atteck_tiems']}")
+#             #     and the attack times is {client_dict[client]['attack_times']}")
 
 #             lst[i] = mode
 
 #     return lst
 
 
+def main():
+    # Define strategy
+    # strategy = fl.server.strategy.FedAvg(evaluate_metrics_aggregation_fn=weighted_average)
+    strategy = FedCustom()
 
-# Define strategy
-# strategy = fl.server.strategy.FedAvg(evaluate_metrics_aggregation_fn=weighted_average)
-strategy = FedCustom()
-
-# Define the Reputation Score
-
-
-# Start Flower server
-fl.server.start_server(
-    server_address="0.0.0.0:8080",
-    config=fl.server.ServerConfig(num_rounds=10),
-    strategy=strategy,
-)
+    # Start Flower server
+    fl.server.start_server(
+        server_address="0.0.0.0:8080",
+        config=fl.server.ServerConfig(num_rounds=10),
+        strategy=strategy,
+    )
+    strategy.save_threshold_list("thresholds.txt")
 
 
-strategy.save_threshold_list("thresholds.txt")
+
+if __name__=="__main__":
+    main()

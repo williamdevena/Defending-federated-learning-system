@@ -1,3 +1,5 @@
+import random
+import sys
 import warnings
 from collections import OrderedDict
 
@@ -11,6 +13,9 @@ from torchvision.transforms import Compose, Normalize, ToTensor
 from tqdm import tqdm
 
 torch.cuda.empty_cache()
+
+
+
 # #############################################################################
 # 1. Regular PyTorch pipeline: nn.Module, train, test, and DataLoader
 # #############################################################################
@@ -65,6 +70,32 @@ def test(net, testloader):
     return loss, accuracy
 
 
+
+
+class CIFAR10WithFakeData(CIFAR10):
+    def __init__(self, *args, fake_data_ratio=0.1, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fake_data_ratio = fake_data_ratio
+
+    def __getitem__(self, index: int):
+        if random.random() < self.fake_data_ratio:
+            # Generate fake data
+            fake_image = torch.rand(3, 32, 32)  # Random tensor with the same size as CIFAR-10 images
+            fake_label = random.randint(0, 9)   # Random label from 0 to 9
+            return fake_image, fake_label
+        else:
+            return super().__getitem__(index)
+
+# Update the data loading function
+def load_noised_data():
+    """Load CIFAR-10 (training and test set) with added fake data."""
+    trf = Compose([ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+    trainset = CIFAR10WithFakeData("./data", train=True, download=True, transform=trf, fake_data_ratio=0.5)
+    testset = CIFAR10WithFakeData("./data", train=False, download=True, transform=trf, fake_data_ratio=0.5)
+    return DataLoader(trainset, batch_size=32, shuffle=True), DataLoader(testset)
+
+
+
 def load_data():
     """Load CIFAR-10 (training and test set)."""
     trf = Compose([ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
@@ -80,16 +111,21 @@ def load_data():
 # Load model and data (simple CNN, CIFAR-10)
 net = Net().to(DEVICE)
 trainloader, testloader = load_data()
+noised_trainloader, noised_testloader = load_noised_data()
 
 
 # Define Flower client
 class FlowerClient(fl.client.NumPyClient):
-    def __init__(self):
-        self.cid = 4
-        
+    def __init__(self, cid):
+        self.cid = cid
+        self.attack_prob = random.uniform(0, 1)
+
     def get_cid(self):
         return self.cid
-        
+
+    def get_attack_prob(self):
+        return self.attack_prob
+
     def get_parameters(self, config):
         return [val.cpu().numpy() for _, val in net.state_dict().items()]
 
@@ -100,17 +136,30 @@ class FlowerClient(fl.client.NumPyClient):
 
     def fit(self, parameters, config):
         self.set_parameters(parameters)
-        train(net, trainloader, epochs=1)
-        return self.get_parameters(config={}), len(trainloader.dataset), {"cid": self.cid}
+        if self.attack_prob < 0.5:
+            train(net, trainloader, epochs=1)
+            length = len(trainloader.dataset)
+        else:
+            train(net, noised_trainloader, epochs=1)
+            length = len(noised_trainloader.dataset)
+        return self.get_parameters(config={}), length, {"cid": self.cid, "attack_prob": self.attack_prob}
 
     def evaluate(self, parameters, config):
         self.set_parameters(parameters)
+        #if self.attack_prob < 0.5:
         loss, accuracy = test(net, testloader)
-        return loss, len(testloader.dataset), {"accuracy": accuracy, "cid": self.cid}
+        length = len(testloader.dataset)
+        # else:
+        #     loss, accuracy = test(net, noised_testloader)
+        #     length = len(noised_testloader.dataset)
+        return loss, length, {"accuracy": accuracy, "cid": self.cid, "attack_prob": self.attack_prob}
 
+def main():
+    # Start Flower client
+    fl.client.start_numpy_client(
+        server_address="127.0.0.1:8080",
+        client=FlowerClient(cid=int(sys.argv[1])),
+    )
 
-# Start Flower client
-fl.client.start_numpy_client(
-    server_address="127.0.0.1:8080",
-    client=FlowerClient(),
-)
+if __name__=="__main__":
+    main()
