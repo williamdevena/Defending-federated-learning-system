@@ -245,7 +245,7 @@ class FedCustom(Strategy):
         # shape of weights_results (3,2)
         # len of num_examples = 50000
 
-        diff_norm_list, del_index = [], []
+        diff_norm_list, del_index, ban_index = [], [], []
         iter = 0
         # print(self.back_index)
         upper_bound = self.threshold_list[0][server_round-1-self.back_index] + 6 * self.threshold_list[2][server_round-1-self.back_index]
@@ -287,6 +287,7 @@ class FedCustom(Strategy):
 
                     # BAN
                     if self.client_dict[client]['atteck_tiems'] == self.client_dict[client]['tolerance']:
+                        ban_index.append(iter)
                         self.client_dict[client]['atteck_tiems'] = 0
                         self.client_dict[client]['tolerance'] -= 1
 
@@ -347,7 +348,7 @@ class FedCustom(Strategy):
                 # Replace unwanted elements with the modified version
                 updated_weights_results = []
                 for i, (weight, num_examples) in enumerate(weights_results):
-                    if i in del_index:
+                    if i in del_index or i in ban_index:
                         updated_weights_results.append((ndarrays_to_parameters(first_remaining_weights), num_examples))
                     else:
                         updated_weights_results.append((weight, num_examples))
@@ -439,7 +440,7 @@ def weighted_average(metrics: List[Tuple[int, Metrics]], results, client_dict) -
     # Multiply accuracy of each client by number of examples used
     accuracies = [num_examples * m["accuracy"] for num_examples, m in metrics]
     examples = [num_examples for num_examples, _ in metrics]
-    accuracies = replace_and_print_non_mode(accuracies, results, client_dict)
+    # accuracies = replace_and_print_non_mode(accuracies, results, client_dict)
 
     # for i in range(5):
     #     print(f"The accuracy for {i}th client list above, the acc is {accuracies[i]}")
@@ -450,51 +451,50 @@ def weighted_average(metrics: List[Tuple[int, Metrics]], results, client_dict) -
     # Aggregate and return custom metric (weighted average)
     return {"accuracy": sum(accuracies) / sum(examples)}
 
-from collections import Counter
+# from collections import Counter
 
+# def replace_and_print_non_mode(lst: list, results, client_dict) -> list:
+#     # Get the common number
+#     mode = Counter(lst).most_common(1)[0][0]
 
-def replace_and_print_non_mode(lst: list, results, client_dict) -> list:
-    # Get the common number
-    mode = Counter(lst).most_common(1)[0][0]
+#     # Change the uncommon number to common number
+#     client_list = []
+#     for _, fit_res in results:
+#             client_list.append(fit_res.metrics["cid"])
+#     for i, num in enumerate(lst):
+#         if num != mode:
+#             # client = f'client{client_list[i]}'
+#             # client_dict[client]['atteck_tiems'] += 1
 
-    # Change the uncommon number to common number
-    client_list = []
-    for _, fit_res in results:
-            client_list.append(fit_res.metrics["cid"])
-    for i, num in enumerate(lst):
-        if num != mode:
-            client = f'client{client_list[i]}'
-            client_dict[client]['atteck_tiems'] += 1
+#             # if client_dict[client]['atteck_tiems'] == client_dict[client]['tolerance']:
+#             #     client_dict[client]['atteck_tiems'] = 0
+#             #     client_dict[client]['tolerance'] -= 1
 
-            if client_dict[client]['atteck_tiems'] == client_dict[client]['tolerance']:
-                client_dict[client]['atteck_tiems'] = 0
-                client_dict[client]['tolerance'] -= 1
+#             #     if client_dict[client]['tolerance'] == 3 and client_dict[client]['ban_count'] == 0:
+#             #         client_dict[client]['ban_count'] += 1
+#             #         # Implement ban
+#             #         print(f"Ban {client_dict[client]['tolerance']} round")
 
-                if client_dict[client]['tolerance'] == 3 and client_dict[client]['ban_count'] == 0:
-                    client_dict[client]['ban_count'] += 1
-                    # Implement ban
-                    print(f"Ban {client_dict[client]['tolerance']} round")
+#             #     elif client_dict[client]['tolerance'] == 2 and client_dict[client]['ban_count'] == 1:
+#             #         client_dict[client]['ban_count'] += 1
+#             #         # Implement ban
+#             #         print(f"Ban {client_dict[client]['tolerance']} round")
 
-                elif client_dict[client]['tolerance'] == 2 and client_dict[client]['ban_count'] == 1:
-                    client_dict[client]['ban_count'] += 1
-                    # Implement ban
-                    print(f"Ban {client_dict[client]['tolerance']} round")
+#             #     elif client_dict[client]['tolerance'] == 1 and client_dict[client]['ban_count'] == 2:
+#             #         client_dict[client]['ban_count'] += 1
+#             #         # Implement ban
+#             #         print(f"Ban {client_dict[client]['tolerance']} round")
 
-                elif client_dict[client]['tolerance'] == 1 and client_dict[client]['ban_count'] == 2:
-                    client_dict[client]['ban_count'] += 1
-                    # Implement ban
-                    print(f"Ban {client_dict[client]['tolerance']} round")
+#             #     elif client_dict[client]['tolerance'] == 1 and client_dict[client]['ban_count'] == 3:
+#             #         # Implement ban
+#             #         print(f"Ban {client_dict[client]['tolerance']} round")
 
-                elif client_dict[client]['tolerance'] == 1 and client_dict[client]['ban_count'] == 3:
-                    # Implement ban
-                    print(f"Ban {client_dict[client]['tolerance']} round")
+#             # print(f"The tolerance for client {client_list[i]} is {client_dict[client]['tolerance']}, the ban is {client_dict[client]['ban_count']} \
+#             #     and the atteck times is {client_dict[client]['atteck_tiems']}")
 
-            print(f"The tolerance for client {client_list[i]} is {client_dict[client]['tolerance']}, the ban is {client_dict[client]['ban_count']} \
-                and the atteck times is {client_dict[client]['atteck_tiems']}")
+#             lst[i] = mode
 
-            lst[i] = mode
-
-    return lst
+#     return lst
 
 
 

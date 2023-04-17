@@ -1,5 +1,5 @@
-import warnings
 import random
+import warnings
 from collections import OrderedDict
 
 import flwr as fl
@@ -115,14 +115,14 @@ noised_trainloader, noised_testloader = load_noised_data()
 class FlowerClient(fl.client.NumPyClient):
     def __init__(self):
         self.cid = 10
-        self.atteck_prob = random.uniform(0, 1)       
-        
+        self.atteck_prob = random.uniform(0, 1)
+
     def get_cid(self):
         return self.cid
-    
+
     def get_atteck_prob(self):
         return self.atteck_prob
-        
+
     def get_parameters(self, config):
         return [val.cpu().numpy() for _, val in net.state_dict().items()]
 
@@ -143,12 +143,12 @@ class FlowerClient(fl.client.NumPyClient):
 
     def evaluate(self, parameters, config):
         self.set_parameters(parameters)
-        if self.atteck_prob < 0.5:
-            loss, accuracy = test(net, testloader)
-            length = len(testloader.dataset)
-        else:
-            loss, accuracy = test(net, noised_testloader)
-            length = len(noised_testloader.dataset)
+        # if self.atteck_prob < 0.5:
+        loss, accuracy = test(net, testloader)
+        length = len(testloader.dataset)
+        # else:
+        #     loss, accuracy = test(net, noised_testloader)
+        #     length = len(noised_testloader.dataset)
         return loss, length, {"accuracy": accuracy, "cid": self.cid, "atteck_prob": self.atteck_prob}
 
 # Start Flower client
