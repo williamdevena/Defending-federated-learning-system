@@ -1,7 +1,6 @@
-import logging
 import os
-import sys
 from logging import WARNING
+from pprint import pprint
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import flwr as fl
@@ -15,7 +14,6 @@ from flwr.server.client_manager import ClientManager
 from flwr.server.client_proxy import ClientProxy
 from flwr.server.strategy.aggregate import aggregate, weighted_loss_avg
 from flwr.server.strategy.strategy import Strategy
-from termcolor import colored
 
 WARNING_MIN_AVAILABLE_CLIENTS_TOO_LOW = """
 Setting `min_available_clients` lower than `min_fit_clients` or
@@ -234,7 +232,6 @@ class FedCustom(Strategy):
     ) -> Tuple[Optional[Parameters], Dict[str, Scalar]]:
         """Aggregate fit results using weighted average."""
 
-
         if server_round == 1:
             self.back_index = 0
 
@@ -257,7 +254,9 @@ class FedCustom(Strategy):
         lower_bound = self.threshold_list[1][server_round-1-self.back_index] - 6 * self.threshold_list[2][server_round-1-self.back_index]
         std_threshold = self.threshold_list[2][server_round-1-self.back_index]
         for _, fit_res in results:
+            #print(f"\n\n{fit_res.metrics}\n\n")
             cid = fit_res.metrics["cid"]
+            #pprint(self.client_dict)
 
             if self.client_is_banned(cid=cid):
                 ban_index.append(iter)
@@ -278,7 +277,7 @@ class FedCustom(Strategy):
             if self.last_aggregated_parameter is not None:
                 #print(colored(f"- Checking the gradient on Client {cid}"), 'green')
                 #print(f"\033[38;5;1mSELF CLIENT DICT: {self.client_dict}\033[0;0m")
-                print(f"\033[38;5;40m- Checking the gradient on Client {cid} xxxxxx{self.client_dict}\033[0;0m")
+                print(f"\033[38;5;40m- Checking the gradient on Client {cid}\033[0;0m")
                 client_parameter = parameters_to_ndarrays(weights_results[iter][0])
                 last_parameter = parameters_to_ndarrays(self.last_aggregated_parameter)
                 last_parameter = [np.array(elem) for elem in last_parameter]
@@ -288,7 +287,7 @@ class FedCustom(Strategy):
                 if diff_norm >=  upper_bound or diff_norm <= lower_bound:
                     #print(colored(f"- Client {cid} parameter diff norm {diff_norm} is bigger than {upper_bound} or smaller than {lower_bound}. Skipping client update."),
                     #      'red')
-                    print(f"\033[38;5;40m- Client {cid} parameter diff norm {diff_norm} is bigger than {upper_bound} or smaller than {lower_bound}. Skipping client update.\033[0;0m")
+                    print(f"\033[38;5;1m- Client {cid} parameter diff norm {diff_norm} is bigger than {upper_bound} or smaller than {lower_bound}. Skipping client update.\033[0;0m")
                     del_index.append(iter)
                     client = f'client{cid}'
                     self.client_dict[client]['attack_times'] += 1
@@ -299,6 +298,8 @@ class FedCustom(Strategy):
                         ban_index.append(iter)
                         self.client_dict[client]['attack_times'] = 0
                         self.client_dict[client]['tolerance'] -= 1
+                        self.client_dict[client]['ban_count'] += 1
+
                         self.ban_client(cid=cid)
 
                         # IMPLEMENT BAN
@@ -369,7 +370,7 @@ class FedCustom(Strategy):
         # Update threshold list
         if self.last_aggregated_parameter is not None and len(del_index) == 0:
             self.threshold_list[0][server_round-1] = np.max([np.mean(diff_norm_list), self.threshold_list[0][server_round-1]])
-            print("- Currently the max thresholdis: ", self.threshold_list[0])
+            print("\033[38;5;40m- Currently the max thresholdis: ", self.threshold_list[0])
             if self.threshold_list[1][server_round-1] == 0:
                 self.threshold_list[1][server_round-1] = np.mean(diff_norm_list)
                 print("- Currently the min thresholdis: ", self.threshold_list[1])
@@ -378,7 +379,7 @@ class FedCustom(Strategy):
                 print("- Currently the min thresholdis: ", self.threshold_list[1])
 
             self.threshold_list[2][server_round-1] = np.max([np.std(diff_norm_list), self.threshold_list[2][server_round-1]])
-            print("- Currently the std: ", self.threshold_list[2])
+            print("- Currently the std: \033[0;0m", self.threshold_list[2])
 
         # Save last aggregated parameter for future comparison
         self.last_aggregated_parameter = parameters_aggregated
@@ -500,6 +501,7 @@ def weighted_average(metrics: List[Tuple[int, Metrics]], results, client_dict) -
 def main():
     # Define strategy
     # strategy = fl.server.strategy.FedAvg(evaluate_metrics_aggregation_fn=weighted_average)
+    #print("\n\nCIAOO\n\n")
     strategy = FedCustom()
 
     # Start Flower server
