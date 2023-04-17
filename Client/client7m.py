@@ -1,5 +1,5 @@
-import warnings
 import random
+import warnings
 from collections import OrderedDict
 
 import flwr as fl
@@ -99,13 +99,14 @@ class FlowerClient(fl.client.NumPyClient):
     def __init__(self):
         self.cid = 7
         self.atteck_prob = random.uniform(0, 1)
-        
+        #self.atteck_prob = 0.99
+
     def get_cid(self):
         return self.cid
-    
+
     def get_atteck_prob(self):
         return self.atteck_prob
-        
+
     def get_parameters(self, config):
         if self.atteck_prob > 0.5:
             parameters = [val.cpu().numpy() for _, val in net.state_dict().items()]
