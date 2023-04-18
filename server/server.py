@@ -1,3 +1,6 @@
+"""
+This module contains the implementation of the server side of the federated learnign system.
+"""
 import os
 from logging import WARNING
 from pprint import pprint

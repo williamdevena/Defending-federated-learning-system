@@ -1,6 +1,7 @@
 """
 This module contains the class that represents a malicious client that performs data poisononing attack.
 """
+
 import random
 import sys
 import warnings

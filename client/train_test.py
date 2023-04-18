@@ -2,6 +2,7 @@
 This module contains the fnctions used to train and test the model on the client side
 of the federated learning system.
 """
+
 import warnings
 
 import torch
