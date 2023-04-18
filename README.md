@@ -4,7 +4,12 @@ This repository contains the code that implements a **Federated Learning (FL)** 
 
 Additionally, it also contains an implementation of **Homomorphic Encryption**, used to defend the system from **reverse engineering** attacks.
 
-To run the system just execute the following command:
-**./run.sh**
+To reproduce the conda environment used for the development and run the system execute the following commands:
+- **conda env create -f environment.yml**
+- **conda activate fl_security**
+- **./run.sh**
+
+Otherwise, to just run the system execute the following command:
+- **./run.sh**
 
 
