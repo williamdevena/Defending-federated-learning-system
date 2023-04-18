@@ -21,19 +21,19 @@ for run in `seq 1 10`; do
     for cid in `seq 1 6`;
     do
         echo -e "${GREEN}- STARTING CLIENT $cid${NC}"
-        python "Client/client.py" $cid &
+        python "client/client.py" $cid &
     done
 
     for cid in `seq 7 8`;
     do
         echo -e "${GREEN}- STARTING CLIENT $cid${NC}"
-        python "Client/client_m.py" $cid &
+        python "client/client_model_poisoning.py" $cid &
     done
 
     for cid in `seq 9 10`;
     do
         echo -e "${GREEN}- STARTING CLIENT $cid${NC}"
-        python "Client/client_d.py" $cid &
+        python "client/client_data_poisoning.py" $cid &
     done
 
     # Enable CTRL+C to stop all background processes

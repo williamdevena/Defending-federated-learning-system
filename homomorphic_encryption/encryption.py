@@ -2,11 +2,6 @@
 This file contains functions used to implement homomorphic encryption.
 """
 
-import logging
-import pickle
-import random
-
-import numpy as np
 import tenseal as ts
 
 
