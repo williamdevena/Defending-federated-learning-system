@@ -13,7 +13,7 @@ for run in `seq 1 10`; do
     echo "Run $run"
 
     echo -e "${GREEN}\n\nSTARTING SERVER\n\n${NC}"
-    python server.py &
+    python server/server.py &
     # server_pid=$!  # Save the server's process ID
     sleep 10  # Sleep for 10s to give the server enough time to start
 

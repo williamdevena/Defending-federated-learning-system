@@ -249,7 +249,7 @@ class FedCustom(Strategy):
 
             if self.client_is_banned(cid=cid):
                 ban_index.append(iter)
-                print(f"\033[38;5;1m- Client {cid} is banned for this round\033[0;0m")
+                print(f"\033[38;5;1m- WARNING: Client {cid} is banned for this round\033[0;0m")
 
                 self.client_dict[f'client{cid}']['banned_rounds'] += 1
                 if self.client_dict[f'client{cid}']['banned_rounds']==3-(self.client_dict[f'client{cid}']['ban_count']+1):
@@ -269,7 +269,7 @@ class FedCustom(Strategy):
                 diff_norm = np.linalg.norm([np.linalg.norm(a - b) for a, b in zip(client_parameter, last_parameter)])
 
                 if diff_norm >=  upper_bound or diff_norm <= lower_bound:
-                    print(f"\033[38;5;1m- Client {cid} parameter diff norm {diff_norm} is bigger than {upper_bound} or smaller than {lower_bound}. Skipping client update.\033[0;0m")
+                    print(f"\033[38;5;1m- WARNING: Client {cid} parameter diff norm {diff_norm:.3f} is bigger than {upper_bound:.3f} or smaller than {lower_bound:.3f} (POTENTIAL ATTACK). Skipping client update.\033[0;0m")
                     del_index.append(iter)
                     client = f'client{cid}'
                     self.client_dict[client]['attack_times'] += 1

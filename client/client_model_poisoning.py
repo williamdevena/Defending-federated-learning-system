@@ -22,6 +22,7 @@ class FlowerClientModelPoisoning(fl.client.NumPyClient):
     def __init__(self, cid, net, trainloader, testloader):
         self.cid = cid
         self.attack_prob = random.uniform(0, 1)
+        #self.attack_prob = 0.99
         self.net = net
         self.trainloader = trainloader
         self.testloader = testloader
