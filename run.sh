@@ -15,7 +15,7 @@ for run in `seq 1 10`; do
 
     echo -e "${GREEN}\n\nSTARTING SERVER\n\n${NC}"
     python server/server.py &
-    # server_pid=$!  # Save the server's process ID
+    server_pid=$!  # Save the server's process ID
     sleep 10  # Sleep for 10s to give the server enough time to start
 
 
@@ -43,7 +43,7 @@ for run in `seq 1 10`; do
     wait
 
     # Stop the server
-    # kill $server_pid
+    kill $server_pid
     sleep 5  # Sleep for 5s to give the server enough time to stop
 
 done
