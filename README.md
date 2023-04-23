@@ -1,7 +1,7 @@
 # Defending a Federated Learning system
 
 
-[![](https://markdown-videos.deta.dev/youtube/{video_id})](https://youtu.be/{video_id})
+[![](https://markdown-videos.deta.dev/youtube/0Uj5Kv4XZZA)](https://youtu.be/0Uj5Kv4XZZA)
 
 
 
