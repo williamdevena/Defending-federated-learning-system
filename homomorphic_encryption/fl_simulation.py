@@ -8,9 +8,10 @@ import time
 
 import encryption
 import numpy as np
+from typing import List, Tuple
 
 
-def clients_send_parameters(num_clients, shape_param):
+def clients_send_parameters(num_clients: int, shape_param: Tuple[int, int]) -> List:
     """
     Simulates a group of client in federated learning system.
 
@@ -47,7 +48,7 @@ def client_sets_new_parameters(weighted_enc_param):
 
 
 
-def server_aggregates_parameters(list_enc_params):
+def server_aggregates_parameters(list_enc_params: List[Tuple]) -> List:
     """
     Simulates the server in a federated learning system.
 
@@ -67,7 +68,7 @@ def server_aggregates_parameters(list_enc_params):
     return weighted_enc_params
 
 
-def simulate_federated_learning_system():
+def simulate_federated_learning_system() -> None:
     """
     Simulates a federated learning system, with several client and one
     server.

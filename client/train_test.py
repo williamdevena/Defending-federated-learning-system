@@ -10,11 +10,14 @@ from torch.utils.data import DataLoader
 from torchvision.datasets import CIFAR10
 from torchvision.transforms import Compose, Normalize, ToTensor
 from tqdm import tqdm
+from typing import Tuple
 
 warnings.filterwarnings("ignore", category=UserWarning)
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-def train(net, trainloader, epochs):
+def train(net: torch.nn.Module,
+          trainloader: torch.utils.data.DataLoader,
+          epochs: int) -> None:
     """Train the model on the training set."""
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
@@ -25,7 +28,8 @@ def train(net, trainloader, epochs):
             optimizer.step()
 
 
-def test(net, testloader):
+def test(net: torch.nn.Module,
+         testloader: torch.utils.data.DataLoader) -> Tuple[float, float]:
     """Validate the model on the test set."""
     criterion = torch.nn.CrossEntropyLoss()
     correct, loss = 0, 0.0
@@ -40,7 +44,7 @@ def test(net, testloader):
 
 
 
-def load_data():
+def load_data() -> Tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
     """Load CIFAR-10 (training and test set)."""
     trf = Compose([ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
     trainset = CIFAR10("./data", train=True, download=True, transform=trf)

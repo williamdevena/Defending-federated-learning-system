@@ -8,8 +8,9 @@ import torch.nn.functional as F
 
 
 class Net(nn.Module):
-    """Model (simple CNN adapted from 'PyTorch: A 60 Minute Blitz')"""
-
+    """
+    A simple Convolutional Neural Network (CNN) for image classification tasks.
+    """
     def __init__(self) -> None:
         super(Net, self).__init__()
         self.conv1 = nn.Conv2d(3, 6, 5)
@@ -25,4 +26,5 @@ class Net(nn.Module):
         x = x.view(-1, 16 * 5 * 5)
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
+
         return self.fc3(x)

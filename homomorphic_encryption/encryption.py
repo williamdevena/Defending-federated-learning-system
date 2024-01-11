@@ -3,9 +3,10 @@ This file contains functions used to implement homomorphic encryption.
 """
 
 import tenseal as ts
+import numpy as np
 
 
-def encrypt_parameters(param):
+def encrypt_parameters(param: np.ndarray):
     """
     Returns encrypted parameters using Homomorphic Encryption.
 

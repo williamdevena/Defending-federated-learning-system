@@ -12,6 +12,8 @@ import malicious_fun
 import torch
 import train_test
 from net import Net
+from typing import List, Tuple, Dict, Union
+import numpy as np
 
 torch.cuda.empty_cache()
 
@@ -20,7 +22,17 @@ DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # Define Flower client
 class FlowerClientModelPoisoning(fl.client.NumPyClient):
-    def __init__(self, cid, net, trainloader, testloader):
+    """
+    A Flower client representing a malicious client in a federated learning system.
+
+    This client performs model poisoning attacks by potentially altering the model parameters
+    based on a random attack probability.
+    """
+    def __init__(self,
+                 cid: int,
+                 net: Net,
+                 trainloader: torch.utils.data.DataLoader,
+                 testloader: torch.utils.data.DataLoader) -> None:
         self.cid = cid
         self.attack_prob = random.uniform(0, 1)
         #self.attack_prob = 0.99
@@ -28,13 +40,34 @@ class FlowerClientModelPoisoning(fl.client.NumPyClient):
         self.trainloader = trainloader
         self.testloader = testloader
 
-    def get_cid(self):
+
+    def get_cid(self) -> int:
+        """
+        Returns the client ID.
+
+        Returns:
+            int: Client ID.
+        """
         return self.cid
 
-    def get_attack_prob(self):
+
+    def get_attack_prob(self) -> float:
+        """
+        Returns the attack probability.
+
+        Returns:
+            float: Attack probability.
+        """
         return self.attack_prob
 
-    def get_parameters(self, config):
+
+    def get_parameters(self) -> List[np.ndarray]:
+        """
+        Retrieves the parameters of the neural network model, possibly altered for attack.
+
+        Returns:
+            List[np.ndarray]: A list of NumPy arrays representing the (possibly altered) model parameters.
+        """
         if self.attack_prob > 0.5:
             parameters = [val.cpu().numpy() for _, val in self.net.state_dict().items()]
             noised_parameters = malicious_fun.add_noise_to_parameters(parameters)
@@ -42,20 +75,49 @@ class FlowerClientModelPoisoning(fl.client.NumPyClient):
         else:
             return [val.cpu().numpy() for _, val in self.net.state_dict().items()]
 
-    def set_parameters(self, parameters):
+
+    def set_parameters(self, parameters: List[np.ndarray]) -> None:
+        """
+        Sets the parameters of the neural network model.
+
+        Args:
+            parameters (List[np.ndarray]): A list of NumPy arrays representing the model parameters to be set.
+        """
         params_dict = zip(self.net.state_dict().keys(), parameters)
         state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
         self.net.load_state_dict(state_dict, strict=True)
 
-    def fit(self, parameters, config):
+
+    def fit(self, parameters: List[np.ndarray]) -> Tuple[List[np.ndarray], int, Dict[str, Union[int, float]]]:
+        """
+        Trains the model on the training data loader.
+
+        Args:
+            parameters (List[np.ndarray]): Model parameters to be used for training.
+
+        Returns:
+            Tuple[List[np.ndarray], int, Dict[str, Union[int, float]]]: Updated model parameters, dataset length, and client information.
+        """
         self.set_parameters(parameters)
         train_test.train(self.net, self.trainloader, epochs=1)
         return self.get_parameters(config={}), len(self.trainloader.dataset), {"cid": self.cid, "attack_prob": self.attack_prob}
 
-    def evaluate(self, parameters, config):
+
+    def evaluate(self, parameters: List[np.ndarray]) -> Tuple[float, int, Dict[str, Union[float, int]]]:
+        """
+        Evaluates the model using the test data loader.
+
+        Args:
+            parameters (List[np.ndarray]): Model parameters to be used for evaluation.
+
+        Returns:
+            Tuple[float, int, Dict[str, Union[float, int]]]: Loss, dataset length, and evaluation metrics.
+        """
         self.set_parameters(parameters)
         loss, accuracy = train_test.test(self.net, self.testloader)
         return loss, len(self.testloader.dataset), {"accuracy": accuracy, "cid": self.cid, "attack_prob": self.attack_prob}
+
+
 
 def main():
     # Load model and data (simple CNN, CIFAR-10)
@@ -70,6 +132,8 @@ def main():
             trainloader=trainloader,
             testloader=testloader),
     )
+
+
 
 if __name__=="__main__":
     main()
